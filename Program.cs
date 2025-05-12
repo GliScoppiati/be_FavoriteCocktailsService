@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 using System.Text;
 using FavoriteCocktailsService.Data;
@@ -16,10 +17,10 @@ builder.Services.AddSwaggerGen(c =>
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Description = "JWT Authorization header",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer"
+        Name        = "Authorization",
+        In          = ParameterLocation.Header,
+        Type        = SecuritySchemeType.ApiKey,
+        Scheme      = "Bearer"
     });
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
@@ -29,9 +30,9 @@ builder.Services.AddSwaggerGen(c =>
                 Reference = new OpenApiReference
                 {
                     Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
+                    Id   = "Bearer"
                 }
-            }, new string[] {}
+            }, Array.Empty<string>()
         }
     });
 });
@@ -40,22 +41,22 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
-var keyBytes = Encoding.ASCII.GetBytes(jwtSection["Key"]!);
+var keyBytes   = Encoding.ASCII.GetBytes(jwtSection["Key"]!);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.RequireHttpsMetadata = false;
-        options.SaveToken = true;
+        options.SaveToken            = true;
         options.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
+            ValidateIssuer           = true,
+            ValidateAudience         = true,
+            ValidateLifetime         = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtSection["Issuer"],
-            ValidAudience = jwtSection["Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(keyBytes)
+            ValidIssuer              = jwtSection["Issuer"],
+            ValidAudience            = jwtSection["Audience"],
+            IssuerSigningKey         = new SymmetricSecurityKey(keyBytes)
         };
     });
 
@@ -68,21 +69,33 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Recupera il logger di Program
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+
+// 🚦 Migrazioni automatiche
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    int max = 10;
-    for (int i = 1; i <= max; i++)
+    var db     = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    const int maxAttempts = 10;
+
+    for (int attempt = 1; attempt <= maxAttempts; attempt++)
     {
         try
         {
             db.Database.Migrate();
-            Console.WriteLine("✅ Migration completata.");
+            logger.LogInformation(
+                "[FavoriteCocktailsService] ✅ Migration completata."
+            );
             break;
         }
-        catch when (i < max)
+        catch (Exception ex) when (attempt < maxAttempts)
         {
-            Console.WriteLine($"⏳ Tentativo {i}/{max}: DB non pronto...");
+            logger.LogWarning(
+                ex,
+                "[FavoriteCocktailsService] ⏳ Tentativo {Attempt}/{MaxAttempts}: DB non pronto, ritento tra 2s",
+                attempt,
+                maxAttempts
+            );
             Thread.Sleep(2000);
         }
     }
@@ -100,5 +113,11 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-Console.WriteLine("🍹 FavoriteCocktailsService avviato.");
+// 🟢 Avvio del service
+var urls = builder.Configuration["ASPNETCORE_URLS"] ?? "non configurato";
+logger.LogInformation(
+    "[FavoriteCocktailsService] 🍹 Service avviato su: {Urls}",
+    urls
+);
+
 app.Run();

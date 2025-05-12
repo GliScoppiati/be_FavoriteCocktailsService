@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FavoriteCocktailsService.Controllers;
 
-[Authorize(Roles = "Admin")]
+[Authorize]
 [ApiController]
 [Route("api/favorites/global")]
 public class AdminFavoritesController : ControllerBase
@@ -43,6 +43,7 @@ public class AdminFavoritesController : ControllerBase
         return Ok(stats);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpGet("trend/{cocktailId}")]
     public async Task<IActionResult> GetCocktailTrend(string cocktailId, [FromQuery] string interval = "day")
     {
