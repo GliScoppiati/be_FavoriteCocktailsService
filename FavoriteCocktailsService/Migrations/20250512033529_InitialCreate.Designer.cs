@@ -9,10 +9,10 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace FavoriteCocktailsService.Migrations
+namespace FavoriteCocktailsService.FavoriteCocktailsService.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250511075108_InitialCreate")]
+    [Migration("20250512033529_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
